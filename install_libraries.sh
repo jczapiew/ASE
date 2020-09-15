@@ -1,0 +1,1 @@
+sudo pip3 install boto3 warcio html2text
