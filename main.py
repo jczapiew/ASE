@@ -4,8 +4,11 @@ import boto3
 import html2text
 from warcio.archiveiterator import ArchiveIterator
 from warcio.bufferedreaders import BytesIO
+from bs4 import BeautifulSoup
 import datetime
 
+interesting_words = ["wirus", "pandemia", "covid", "covid19", "biznes", "polska"]
+word_count = [0] * len(interesting_words)
 
 # ==============================================================
 # ==================== Deklaracje funkcji ======================
@@ -19,6 +22,7 @@ def process_warc_path_df(record):
 
 # Funkcja odczytująca i przetwarzająca pliki WARC z Common Crawl(wersja testowa, do zmiany)
 def fetch_process_warc_records(rows):
+    global interesting_words, word_count
     print('>>>>>>>>>>>>>>>>>')
     s3client = boto3.client('s3')
 
@@ -39,11 +43,32 @@ def fetch_process_warc_records(rows):
             date_obj = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
             print('Date: ', date_obj)
             page = record.content_stream().read()
-            # text = parser.handle(page)
-            #print(page)
-            # words = map(lambda w: w.lower(), word_pattern.findall(text))
-            # for word in words:
-            #     yield word, 1
+
+            soup = BeautifulSoup(page, features="html.parser")
+
+            # wyrzucenie elementów 'script' i 'style'
+            for script in soup(["script", "style"]):
+                script.extract()
+
+            # zamiana na czysty tekst
+            text = soup.get_text()
+            # linijka po linijce bez białych znaków na końcach
+            lines = (line.strip() for line in text.splitlines())
+            chunks = (phrase.strip() for line in lines for phrase in line.split("  "))
+            # wyrzucenie pustych linii
+            text = '\n'.join(chunk for chunk in chunks if chunk)
+
+            # liczenie słów
+            for word in text.split():
+                if len(word) < 4:  # odrzucanie krotkich slow (np. "na")
+                    continue
+
+                word = word.lower()
+                # jeśli słowo jest tym którego szukamy to ++
+                if word in interesting_words:
+                    i = interesting_words.index(word)
+                    word_count[i] += 1
+
     print('>>>>>>>>>>>>>>>>>')
 
 
@@ -81,6 +106,8 @@ warc_paths_rdd = sqlDF.rdd.map(process_warc_path_df).collect()
 # Odczytanie i przetwarzanie plików WARC
 fetch_process_warc_records(warc_paths_rdd)
 
+print(interesting_words)
+print(word_count)
 
 print("==============================================")
 print("+--------------------------------------------+")
