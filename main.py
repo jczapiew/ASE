@@ -4,12 +4,12 @@ import boto3
 import html2text
 from warcio.archiveiterator import ArchiveIterator
 from warcio.bufferedreaders import BytesIO
+import datetime
 
 
 # ==============================================================
 # ==================== Deklaracje funkcji ======================
 # ==============================================================
-
 
 # Funkcja zamieniająca rekord zmiennej dataframe na wpis w zmiennej dictionary
 def process_warc_path_df(record):
@@ -31,12 +31,16 @@ def fetch_process_warc_records(rows):
         response = s3client.get_object(Bucket='commoncrawl', Key=warc_path, Range=rangereq)
 
         record_stream = BytesIO(response["Body"].read())
+
         parser = html2text.HTML2Text()
         parser.ignore_links = True
         for record in ArchiveIterator(record_stream):
+            date_str = record.rec_headers.get_header("WARC-Date").split("T")[0]
+            date_obj = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+            print('Date: ', date_obj)
             page = record.content_stream().read()
-            #text = parser.handle(page)
-            print(page)
+            # text = parser.handle(page)
+            #print(page)
             # words = map(lambda w: w.lower(), word_pattern.findall(text))
             # for word in words:
             #     yield word, 1
@@ -50,7 +54,6 @@ def fetch_process_warc_records(rows):
 print("==============================================")
 print("+--------------------------------------------+")
 print("==============================================")
-
 
 # Inicializacja Sparka
 conf = (SparkConf()
@@ -69,7 +72,7 @@ df.createOrReplaceTempView('ccindex')
 # Wybranie przedziału danych, które nas interesują, za pomocą odpowiedniego zapytania
 query_txt = 'SELECT url, warc_filename, warc_record_offset, warc_record_length FROM ccindex ' \
             'WHERE crawl = "CC-MAIN-2020-16" AND subset = "warc" AND url_host_tld = "pl"'
-sqlDF = sql_context.sql(query_txt).limit(10)
+sqlDF = sql_context.sql(query_txt).limit(100)
 # sqlDF.show()
 
 # Zamiana zmiennej typu dataframe, zawierającej linki do plików WARC, na zmienną typu dictionary
