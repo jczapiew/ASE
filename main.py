@@ -132,7 +132,7 @@ for row in word_counts_sorted:
 
 # Zamiana finalnej tabeli na DataFrame i zapisanie danych do pliku .csv
 df_words = sc.parallelize(word_counts_final).toDF(index_row)
-df_words.repartition(1).write.csv(output_bucket_folder)
+df_words.repartition(1).write.csv(output_bucket_folder, mode='overwrite')
 df_words.show()
 
 
