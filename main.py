@@ -59,6 +59,9 @@ print("==============================================")
 print("+--------------------------------------------+")
 print("==============================================")
 
+# Zmienna definiująca gdzie ma być zapisany plik wynikowy(Bucket użytkownika na S3)
+output_bucket_folder = 's3://aseeee/dane.csv'
+
 # Słowa klucze
 word_patterns = ['covid', 'covid19', 'pandemia', 'wirus']
 
@@ -129,7 +132,7 @@ for row in word_counts_sorted:
 
 # Zamiana finalnej tabeli na DataFrame i zapisanie danych do pliku .csv
 df_words = sc.parallelize(word_counts_final).toDF(index_row)
-df_words.repartition(1).write.csv('s3://aseeee/dane.csv')
+df_words.repartition(1).write.csv(output_bucket_folder)
 df_words.show()
 
 
