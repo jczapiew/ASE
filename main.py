@@ -24,30 +24,32 @@ def process_warc_records(warc_records):
         warc_length = int(record['warc_record_length'])
         warc_range = 'bytes={}-{}'.format(warc_offset, (warc_offset+warc_length-1))
         # Wczytywanie pliku WARC z Common Crawl
-        response = s3_client.get_object(Bucket='commoncrawl', Key=warc_path, Range=warc_range)
+        try:
+            response = s3_client.get_object(Bucket='commoncrawl', Key=warc_path, Range=warc_range)
 
-        # Odczytywanie danych z pliku WARC
-        warc_record_stream = BytesIO(response["Body"].read())
+            # Odczytywanie danych z pliku WARC
+            warc_record_stream = BytesIO(response["Body"].read())
 
-        # Przetwarzanie rekordów pliku WARC
-        for warc_record in ArchiveIterator(warc_record_stream):
-            # Odczytywanie daty pliku WARC
-            date_str = warc_record.rec_headers.get_header("WARC-Date").split("T")[0]
-            date_obj = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
-            # Czytanie danych zapisanych w postaci HTML
-            page = warc_record.content_stream().read()
-            soup = BeautifulSoup(page, features="html.parser")
-            # wyrzucenie elementów 'script' i 'style'
-            for script in soup(["script", "style"]):
-                script.extract()
-            # zamiana na czysty tekst
-            page_text = soup.get_text().lower()
+            # Przetwarzanie rekordów pliku WARC
+            for warc_record in ArchiveIterator(warc_record_stream):
+                # Odczytywanie daty pliku WARC
+                date_str = warc_record.rec_headers.get_header("WARC-Date").split("T")[0]
+                date_obj = datetime.datetime.strptime(date_str, '%Y-%m-%d').date()
+                # Czytanie danych zapisanych w postaci HTML
+                page = warc_record.content_stream().read()
+                soup = BeautifulSoup(page, features="html.parser")
+                # wyrzucenie elementów 'script' i 'style'
+                for script in soup(["script", "style"]):
+                    script.extract()
+                # zamiana na czysty tekst
+                page_text = soup.get_text()
 
-            # Zliczanie wystąpień każdego słowa klucza w tekście
-            for word in word_patterns:
-                count = sum(1 for _ in re.finditer(r'\b%s\b' % re.escape(word), page_text))
-                key = str(date_obj) + '/' + word  # Klucz = data pliku WARC + słowo klucz
-                yield key, count
+                # Zliczanie wystąpień każdego słowa klucza w tekście
+                counted_words = map(lambda w: w.lower(), word_pattern.findall(page_text))
+                for word in counted_words:
+                    yield str(date_obj) + '/' + word, 1
+        except Exception as e:
+            pass
 
 
 
@@ -63,7 +65,8 @@ print("==============================================")
 output_bucket_folder = 's3://aseeee/dane.csv'
 
 # Słowa klucze
-word_patterns = ['covid', 'covid19', 'pandemia', 'wirus']
+key_words = ['covid', 'covid19', 'pandemia', 'wirus']
+word_pattern = re.compile(r'\b(?:%s)\b' % '|'.join(key_words))
 
 # Inicializacja Sparka
 conf = (SparkConf()
@@ -104,12 +107,12 @@ word_counts_sorted = sorted(word_counts_array, key=lambda word_row: word_row[0])
 # Stworzenie finalnej tablicy z danymi w celu łatwiejszej ich wizualizacji i przetwarzania(rządy to daty, kolumny to słowa klucze)
 word_counts_final = []
 index_row = ['DATE']
-for word in word_patterns:
+for word in key_words:
     index_row.append(word)
 
 word_counts_final.append(index_row)
 temp_row = [word_counts_sorted[0][0]]
-for i in range(len(word_patterns)):
+for i in range(len(key_words)):
     temp_row.append(0)
 word_counts_final.append(temp_row)
 
@@ -120,7 +123,7 @@ for row in word_counts_sorted:
     count = row[2]
     if word_counts_final[items - 1][0] != date:
         new_row = [date]
-        for i in range(len(word_patterns)):
+        for i in range(len(key_words)):
             new_row.append(0)
         word_counts_final.append(new_row)
         items = len(word_counts_final)
@@ -132,8 +135,9 @@ for row in word_counts_sorted:
 
 # Zamiana finalnej tabeli na DataFrame i zapisanie danych do pliku .csv
 df_words = sc.parallelize(word_counts_final).toDF(index_row)
-df_words.repartition(1).write.csv(output_bucket_folder, mode='overwrite')
 df_words.show()
+df_words.repartition(1).write.csv(output_bucket_folder, mode='overwrite')
+
 
 
 print("==============================================")
