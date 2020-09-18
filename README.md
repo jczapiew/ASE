@@ -1,6 +1,8 @@
 # Sprawozdanie z projektu z ASEiED 2020
 Paweł Łogin 171797
+
 Marcin Wankiewicz 172118
+
 Jędrzej Czapiewski 171747
 ## Temat zadania
 Nasze zadanie polegało na przeanalizowaniu danych pochodzących z różnych stron internetowych w przedziałach czasu marzec/kwiecień 2019 oraz marzec/kwiecień 2020 pod kątem liczby wystąpień słów "wirus", "covid19", "covid", "pandemia". Zmiana częstotliwości występowania tychże słów została ukazana przez nas na odpowiednich wykresach w skali dniowej. Mieliśmy również dokonać analizy tematycznej wykorzystanych stron przy użyciu metadanych.
